@@ -1,4 +1,4 @@
-module.exports = Queue => {
+module.exports = () => {
 	'ngInject'
 
 	function Stream(callback) {
@@ -60,6 +60,18 @@ module.exports = Queue => {
 		return stream
 	}
 
+	Stream.prototype.takeUntil = function (stream) {
+		return new Stream(observer => {
+			var end = false
+			this.subscribe(value => {
+				if (!end) return observer.next(value)
+			})
+			stream.subscribe(() => {
+				end = true
+			})
+		})
+	}
+
 	Stream.prototype.next = function (value) {
 		this.observers.map(observer => observer.next(value))
 	}
@@ -80,6 +92,14 @@ module.exports = Queue => {
 
 	Stream.prototype.onError = function (error) {
 		this.observers.map(observer => observer.error(error))
+	}
+
+	Stream.fromEvent = function (target, event) {
+		return new Stream(observer => {
+			target.addEventListener(event, e => {
+				observer.next(e)
+			})
+		})
 	}
 
 	return Stream
