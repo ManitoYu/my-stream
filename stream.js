@@ -12,6 +12,15 @@ module.exports = Queue => {
 		})
 	}
 
+	Stream.prototype.filter = function (filterFn) {
+		return new Stream(observer => {
+			this.subscribe(value => {
+				if (!filterFn(value)) return
+				observer.next(value)
+			})
+		})
+	}
+
 	Stream.prototype.distinctUntilChanged = function () {
 		return new Stream(observer => {
 			this.takeLast(2)
@@ -49,6 +58,18 @@ module.exports = Queue => {
 			})
 		})
 		return stream
+	}
+
+	Stream.prototype.next = function (value) {
+		this.observers.map(observer => observer.next(value))
+	}
+
+	Stream.prototype.error = function (error) {
+		this.observers.map(observer => observer.error(error))
+	}
+
+	Stream.prototype.complete = function () {
+		this.observers.map(observer => observer.complete())
 	}
 
 	Stream.prototype.subscribe = function (nextHandler, errorHandler, completeHandler) {
