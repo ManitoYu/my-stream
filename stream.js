@@ -1,9 +1,38 @@
 module.exports = () => {
 	'ngInject'
 
+	function Observer(nextHandler, errorHandler, completeHandler) {
+		this.closed = false
+		this.nextHandler = nextHandler || noop
+		this.errorHandler = errorHandler || noop
+		this.completeHandler = completeHandler || noop
+	}
+
+	Observer.prototype.next = function (value) {
+		if (this.closed) return
+		this.nextHandler(value)
+	}
+
+	Observer.prototype.error = function (error) {
+		if (this.closed) return
+		this.closed = true
+		this.errorHandler(error)
+	}
+
+	Observer.prototype.complete = function () {
+		if (this.closed) return
+		this.closed = true
+		this.completeHandler()
+	}
+
+	Observer.prototype.unsubscribe = function () {
+		if (this.closed) return
+		this.closed = true
+	}
+
 	function Stream(callback) {
 		this.observers = []
-		this.callback = callback
+		this.callback = callback || noop
 	}
 
 	Stream.prototype.map = function (mapFn) {
@@ -34,7 +63,7 @@ module.exports = () => {
 	}
 
 	Stream.prototype.toArray = function () {
-		var stream = new Stream(observer => {
+		return new Stream(observer => {
 			var array = []
 			this.subscribe(
 				v => array.push(v),
@@ -45,31 +74,36 @@ module.exports = () => {
 				}
 			)
 		})
-		return stream
 	}
 
 	Stream.prototype.takeLast = function (count) {
-		var stream = new Stream(observer => {
+		return new Stream(observer => {
 			var queue = []
 			this.subscribe(value => {
 				queue.push(value)
 				queue.slice(-count).map(v => observer.next(v))
 				observer.complete()
+				observer.closed = false
 			})
 		})
-		return stream
+	}
+
+	Stream.prototype.merge = function () {
+		var streams = [].slice.call(arguments)
+		streams.unshift(this)
+		return new Stream(observer => {
+			streams.map(stream => {
+				stream.subscribe(value => observer.next(value))
+			})
+		})
+	}
+
+	Stream.prototype.mergeMap = function (mapFn) {
+	
 	}
 
 	Stream.prototype.takeUntil = function (stream) {
-		return new Stream(observer => {
-			var end = false
-			this.subscribe(value => {
-				if (!end) return observer.next(value)
-			})
-			stream.subscribe(() => {
-				end = true
-			})
-		})
+		
 	}
 
 	Stream.prototype.next = function (value) {
@@ -85,21 +119,20 @@ module.exports = () => {
 	}
 
 	Stream.prototype.subscribe = function (nextHandler, errorHandler, completeHandler) {
-		var observer = { next: nextHandler, error: errorHandler, complete: completeHandler }
+		var observer = new Observer(nextHandler, errorHandler, completeHandler)
 		this.observers.push(observer)
-		this.callback && this.callback(observer)
-	}
-
-	Stream.prototype.onError = function (error) {
-		this.observers.map(observer => observer.error(error))
+		this.callback(observer)
+		return observer
 	}
 
 	Stream.fromEvent = function (target, event) {
 		return new Stream(observer => {
-			target.addEventListener(event, e => {
-				observer.next(e)
-			})
+			target.addEventListener(event, e => observer.next(e))
 		})
+	}
+
+	function noop() {
+		return undefined
 	}
 
 	return Stream
