@@ -33,6 +33,8 @@ module.exports = () => {
 	function Stream(callback) {
 		this.observers = []
 		this.callback = callback || noop
+		this.source = null
+		this.operator = null
 	}
 
 	Stream.prototype.map = function (mapFn) {
@@ -67,7 +69,7 @@ module.exports = () => {
 			var array = []
 			this.subscribe(
 				v => array.push(v),
-				e => {},
+				null,
 				() => {
 					observer.next(array)
 					array = []
@@ -98,12 +100,32 @@ module.exports = () => {
 		})
 	}
 
+	// XXX
 	Stream.prototype.mergeMap = function (mapFn) {
-	
+		return this.map(mapFn).mergeAll()
 	}
 
+	// XXX
 	Stream.prototype.takeUntil = function (stream) {
-		
+		return new Stream(observer => {
+			this.subscribe(value => observer.next(value))
+			stream.subscribe(() => this.complete())
+		})
+	}
+
+	Stream.prototype.mergeAll = function () {
+		var subscriptions = []
+		var stream = new Stream(observer => {
+			this.subscribe(value => {
+				observer.closed = false
+				subscriptions.push(value.subscribe(v => observer.next(v)))
+			})
+		})
+		stream.subscribe(null, null, () => {
+			subscriptions.map(subscription => subscription.complete())
+			subscriptions = []
+		})
+		return stream
 	}
 
 	Stream.prototype.next = function (value) {
@@ -128,6 +150,31 @@ module.exports = () => {
 	Stream.fromEvent = function (target, event) {
 		return new Stream(observer => {
 			target.addEventListener(event, e => observer.next(e))
+		})
+	}
+
+	Stream.combineLatest = function () {
+		var streams = [].slice.call(arguments)
+		var array = Array(streams.length).fill()
+		return new Stream(observer => {
+			streams.map((stream, index) => {
+				stream.subscribe(value => {
+					array[index] = value
+					observer.next(array)
+				})
+			})
+		})
+	}
+
+	Stream.timer = function (delay, period) {
+		return new Stream(observer => {
+			var n = 0
+			if (delay) {
+				setTimeout(() => observer.next(n), delay)
+			}
+			if (period) {
+				setInterval(() => observer.next(n ++), period)
+			}
 		})
 	}
 

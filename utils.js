@@ -201,6 +201,7 @@ module.exports = ($timeout) => {
 	function isEmpty(obj) {
 		if (isUndefined(obj)) return true
 		if (isNull(obj)) return true
+		if (isNumber(obj) && !obj) return true
 		if (isString(obj) && !obj) return true
 		if (isArray(obj) && !size(obj)) return true
 		if (isPlainObject(obj) && !size(obj)) return true
@@ -237,6 +238,14 @@ module.exports = ($timeout) => {
 		return value
 	}
 
+	function compact(array) {
+		return array.filter(item => !isEmpty(item))
+	}
+
+	function last(array) {
+		return array[array.length - 1]
+	}
+
 	return {
 		isArray: isArray,
 		unique: unique,
@@ -269,6 +278,8 @@ module.exports = ($timeout) => {
 		isEqual: isEqual,
 		defaultTo: defaultTo,
 		toNumber: toNumber,
-		isPromise: isPromise
+		isPromise: isPromise,
+		compact: compact,
+		last: last
 	}
 }
